@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nonebot-plugin-roblox-search"
-version = "1.0.1"
+version = "1.0.2"
 description = "Roblox平台综合查询插件，支持用户/游戏/群组/好友粉丝列表查询"
 authors = [
   { name = "MrMao", email = "admin@maoyyds.cn" }
@@ -29,8 +29,12 @@ classifiers = [
 Homepage = "https://github.com/maoyyds-cn/nonebot-plugin-roblox-search"
 Repository = "https://github.com/maoyyds-cn/nonebot-plugin-roblox-search.git"
 
-[tool.setuptools]
-packages = ["nonebot_plugin_roblox_search"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nonebot_plugin_roblox_search"]
+
+[project.entry-points."nonebot.plugin"]
+nonebot_plugin_roblox_search = "nonebot_plugin_roblox_search"
 
 [tool.nonebot]
 plugins = ["nonebot_plugin_roblox_search"]
