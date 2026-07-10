@@ -5,56 +5,28 @@ import time
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
+from .render_utils import rich_text_to_image
+from .http_utils import http_get
 
-HEADERS = [
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
-TIMEOUT = 30
-
-# 触发关键词：/群组名搜索
 roblox_group_name_search = on_keyword(["/群组名搜索","群组名搜索"], priority=5, block=True)
 
-async def curl_request(method, url, data=None, headers=None):
-    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
-    if data:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
-    for h in (headers or HEADERS):
-        cmd += ["-H", h]
-    cmd.append(url)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"curl 失败: {stderr.decode()}")
-    return json.loads(stdout.decode()) if stdout else {}
-
 async def search_group_by_name(group_name):
-    """根据群组名搜索（Roblox无直接搜索API，用模糊匹配+列表接口兜底）"""
-    # 注：Roblox无公开的"群组名搜索"API，此处用热门群组列表+模糊匹配模拟（可根据实际API调整）
-    # 若有正式搜索API，替换此函数即可
     url = "https://groups.roblox.com/v1/groups/search/lookup?keyword=" + group_name
     try:
-        data = await curl_request("GET", url)
-        return data.get("data", [])[:5]  # 返回前5个匹配结果
+        data = await http_get(url)
+        return data.get("data", [])[:5]
     except Exception:
-        # 兜底：无搜索结果返回空
         return []
 
 async def get_group_detail(group_id):
-    """获取群组详情"""
     url = f"https://groups.roblox.com/v1/groups/{group_id}"
     try:
-        return await curl_request("GET", url)
+        return await http_get(url)
     except Exception:
         return {}
 
 @roblox_group_name_search.handle()
 async def handle_group_name_search(event: Event):
-    # 提取群组名
     raw_text = str(event.get_message()).strip()
     group_name = raw_text.replace("/群组名搜索", "").strip()
     
@@ -65,16 +37,13 @@ async def handle_group_name_search(event: Event):
     total_start = time.time()
     
     try:
-        # 搜索群组
         group_list = await search_group_by_name(group_name)
         if not group_list:
             await roblox_group_name_search.finish("未找到匹配的群组！")
         
-        # 批量获取群组详情
         tasks = [get_group_detail(g.get("id", 0)) for g in group_list]
         group_details = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 组装结果
         output = f"🔍 群组名搜索结果（共{len(group_list)}个）：\n\n"
         for idx, (group, detail) in enumerate(zip(group_list, group_details)):
             group_id = group.get("id", 0)
@@ -96,7 +65,12 @@ async def handle_group_name_search(event: Event):
                 f"简介：{description}\n\n"
             )
         
-        await roblox_group_name_search.finish(output.strip())
+        try:
+            img_bytes = await rich_text_to_image(output.strip(), "🔍 Roblox 群组名搜索")
+            await roblox_group_name_search.finish(MessageSegment.image(img_bytes))
+        except Exception as e:
+            print(f"[群组名搜索渲染错误] {e}")
+            await roblox_group_name_search.finish(output.strip())
 
     except FinishedException:
         raise

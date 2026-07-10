@@ -5,54 +5,29 @@ import time
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
+from .render_utils import rich_text_to_image
+from .http_utils import http_get
 
-HEADERS = [
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
-TIMEOUT = 30
-
-# 触发关键词：/游戏名搜索
 roblox_game_name_search = on_keyword(["/游戏名搜索","游戏名搜索"], priority=5, block=True)
 
-async def curl_request(method, url, data=None, headers=None):
-    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
-    if data:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
-    for h in (headers or HEADERS):
-        cmd += ["-H", h]
-    cmd.append(url)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"curl 失败: {stderr.decode()}")
-    return json.loads(stdout.decode()) if stdout else {}
-
 async def search_game_by_name(game_name):
-    """根据游戏名搜索"""
     url = f"https://games.roblox.com/v1/games/list?keyword={game_name}&limit=5"
     try:
-        data = await curl_request("GET", url)
+        data = await http_get(url)
         return data.get("data", [])
     except Exception:
         return []
 
 async def get_game_detail(game_id):
-    """获取游戏详情"""
     url = f"https://games.roblox.com/v1/games?universeIds={game_id}"
     try:
-        data = await curl_request("GET", url)
+        data = await http_get(url)
         return data.get("data", [{}])[0]
     except Exception:
         return {}
 
 @roblox_game_name_search.handle()
 async def handle_game_name_search(event: Event):
-    # 提取游戏名
     raw_text = str(event.get_message()).strip()
     game_name = raw_text.replace("/游戏名搜索", "").strip()
     
@@ -63,16 +38,13 @@ async def handle_game_name_search(event: Event):
     total_start = time.time()
     
     try:
-        # 搜索游戏
         game_list = await search_game_by_name(game_name)
         if not game_list:
             await roblox_game_name_search.finish("未找到匹配的游戏！")
         
-        # 批量获取游戏详情
         tasks = [get_game_detail(g.get("universeId", 0)) for g in game_list]
         game_details = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 组装结果
         output = f"🎮 游戏名搜索结果（共{len(game_list)}个）：\n\n"
         for idx, (game, detail) in enumerate(zip(game_list, game_details)):
             game_id = game.get("universeId", 0)
@@ -95,7 +67,12 @@ async def handle_game_name_search(event: Event):
                 f"简介：{description}\n\n"
             )
         
-        await roblox_game_name_search.finish(output.strip())
+        try:
+            img_bytes = await rich_text_to_image(output.strip(), "🎮 Roblox 游戏名搜索")
+            await roblox_game_name_search.finish(MessageSegment.image(img_bytes))
+        except Exception as e:
+            print(f"[游戏名搜索渲染错误] {e}")
+            await roblox_game_name_search.finish(output.strip())
 
     except FinishedException:
         raise

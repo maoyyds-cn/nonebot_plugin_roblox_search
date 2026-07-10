@@ -1,8 +1,8 @@
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message
+from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed
+from .render_utils import text_to_image
 
-# 触发关键词：/菜单
 roblox_menu = on_keyword(["/menu","menu"], priority=5, block=True)
 
 @roblox_menu.handle()
@@ -21,4 +21,9 @@ async def handle_menu(event: Event):
 
 💡 示例：/用户名搜索 maochina_4
     """.strip()
-    await roblox_menu.finish(menu_text)
+    try:
+        img_bytes = await text_to_image(menu_text, "📋 Roblox 查询指令菜单")
+        await roblox_menu.finish(MessageSegment.image(img_bytes))
+    except Exception as e:
+        print(f"[菜单渲染错误] {e}")
+        await roblox_menu.finish(menu_text)

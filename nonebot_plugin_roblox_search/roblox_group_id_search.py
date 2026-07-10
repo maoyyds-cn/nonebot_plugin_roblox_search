@@ -5,50 +5,25 @@ import time
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
+from .render_utils import rich_text_to_image
+from .http_utils import http_get
 
-HEADERS = [
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
-TIMEOUT = 30
-
-# 触发关键词：/群组ID搜索
 roblox_group_id_search = on_keyword(["/群组ID搜索","群组ID搜索"], priority=5, block=True)
 
-async def curl_request(method, url, data=None, headers=None):
-    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
-    if data:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
-    for h in (headers or HEADERS):
-        cmd += ["-H", h]
-    cmd.append(url)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"curl 失败: {stderr.decode()}")
-    return json.loads(stdout.decode()) if stdout else {}
-
 async def get_group_detail(group_id):
-    """根据群组ID获取详情"""
     url = f"https://groups.roblox.com/v1/groups/{group_id}"
-    return await curl_request("GET", url)
+    return await http_get(url)
 
 async def get_group_roles(group_id):
-    """获取群组职位列表"""
     url = f"https://groups.roblox.com/v1/groups/{group_id}/roles"
     try:
-        data = await curl_request("GET", url)
-        return data.get("roles", [])[:5]  # 前5个职位
+        data = await http_get(url)
+        return data.get("roles", [])[:5]
     except Exception:
         return []
 
 @roblox_group_id_search.handle()
 async def handle_group_id_search(event: Event):
-    # 提取群组ID
     raw_text = str(event.get_message()).strip()
     group_id_str = raw_text.replace("/群组ID搜索", "").strip()
     
@@ -60,18 +35,15 @@ async def handle_group_id_search(event: Event):
     total_start = time.time()
     
     try:
-        # 并发请求数据
         tasks = [get_group_detail(group_id), get_group_roles(group_id)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         group_detail, group_roles = results
         
-        # 异常兜底
         if isinstance(group_detail, Exception) or not group_detail:
             await roblox_group_id_search.finish("未找到该群组ID对应的信息！")
         if isinstance(group_roles, Exception):
             group_roles = []
         
-        # 解析信息
         name = group_detail.get("name", "未知")
         description = group_detail.get("description", "").strip() or "无简介"
         member_count = group_detail.get("memberCount", 0)
@@ -79,7 +51,6 @@ async def handle_group_id_search(event: Event):
         owner_id = group_detail.get("owner", {}).get("userId", 0)
         created = group_detail.get("created", "").split("T")[0] if group_detail.get("created") else "未知"
         
-        # 职位列表
         role_text = ""
         if group_roles:
             for idx, role in enumerate(group_roles):
@@ -90,9 +61,7 @@ async def handle_group_id_search(event: Event):
         else:
             role_text = "暂无职位信息"
         
-        # 组装输出
         output = (
-            f"🏠 Roblox 群组ID查询结果\n"
             f"🆔 群组ID：{group_id}\n"
             f"📛 群组名：{name}\n"
             f"📅 创建时间：{created}\n"
@@ -102,7 +71,12 @@ async def handle_group_id_search(event: Event):
             f"🎭 职位列表（前5个）：\n{role_text}"
         )
         
-        await roblox_group_id_search.finish(output)
+        try:
+            img_bytes = await rich_text_to_image(output, "🏠 Roblox 群组ID查询结果")
+            await roblox_group_id_search.finish(MessageSegment.image(img_bytes))
+        except Exception as e:
+            print(f"[群组ID查询渲染错误] {e}")
+            await roblox_group_id_search.finish(output)
 
     except FinishedException:
         raise

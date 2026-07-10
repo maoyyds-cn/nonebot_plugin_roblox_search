@@ -5,48 +5,24 @@ import time
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
+from .render_utils import rich_text_to_image
+from .http_utils import http_get, http_post
 
-HEADERS = [
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
-TIMEOUT = 30
-
-# 触发关键词：/获取好友列表
 roblox_get_friends = on_keyword(["/获取好友列表","获取好友列表"], priority=5, block=True)
 
-async def curl_request(method, url, data=None, headers=None):
-    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
-    if data:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
-    for h in (headers or HEADERS):
-        cmd += ["-H", h]
-    cmd.append(url)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"curl 失败: {stderr.decode()}")
-    return json.loads(stdout.decode()) if stdout else {}
-
 async def get_friend_list(uid):
-    """获取用户好友列表"""
-    url = f"https://friends.roblox.com/v1/users/{uid}/friends?limit=10"  # 最多10个
+    url = f"https://friends.roblox.com/v1/users/{uid}/friends?limit=10"
     try:
-        data = await curl_request("GET", url)
+        data = await http_get(url)
         return data.get("data", [])
     except Exception:
         return []
 
 async def get_user_basic_info(uids):
-    """批量获取用户基础信息（用户名/显示名）"""
     url = "https://users.roblox.com/v1/users/usernames"
     payload = {"userIds": uids, "excludeBannedUsers": False}
     try:
-        data = await curl_request("POST", url, data=payload)
+        data = await http_post(url, data=payload)
         return {item["id"]: item for item in data.get("data", [])}
     except Exception:
         return {}
@@ -95,7 +71,12 @@ async def handle_get_friends(event: Event):
                 f"关系：{mutual}\n\n"
             )
         
-        await roblox_get_friends.finish(output.strip())
+        try:
+            img_bytes = await rich_text_to_image(output.strip(), "👥 Roblox 好友列表")
+            await roblox_get_friends.finish(MessageSegment.image(img_bytes))
+        except Exception as e:
+            print(f"[好友列表渲染错误] {e}")
+            await roblox_get_friends.finish(output.strip())
 
     except FinishedException:
         raise
