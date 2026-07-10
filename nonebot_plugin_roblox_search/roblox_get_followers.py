@@ -1,104 +1,47 @@
 import asyncio
-import json
 import traceback
 import time
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
-from nonebot.exception import ActionFailed, FinishedException
+from nonebot.adapters.onebot.v11 import Event
+from nonebot.exception import ActionFailed
+from .http_utils import http_get
 
-HEADERS = [
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-]
-TIMEOUT = 30
-
-# 触发关键词：/获取粉丝列表
 roblox_get_followers = on_keyword(["/获取粉丝列表","获取粉丝列表"], priority=5, block=True)
 
-async def curl_request(method, url, data=None, headers=None):
-    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
-    if data:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
-    for h in (headers or HEADERS):
-        cmd += ["-H", h]
-    cmd.append(url)
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"curl 失败: {stderr.decode()}")
-    return json.loads(stdout.decode()) if stdout else {}
-
-async def get_follower_list(uid):
-    """获取用户粉丝列表"""
-    url = f"https://friends.roblox.com/v1/users/{uid}/followers?limit=10"  # 最多10个
+async def get_followers(uid, limit=10):
+    url = f"https://friends.roblox.com/v1/users/{uid}/followers?limit={limit}"
     try:
-        data = await curl_request("GET", url)
+        data = await http_get(url)
         return data.get("data", [])
     except Exception:
         return []
 
-async def get_user_basic_info(uids):
-    """批量获取用户基础信息"""
-    url = "https://users.roblox.com/v1/users/usernames"
-    payload = {"userIds": uids, "excludeBannedUsers": False}
-    try:
-        data = await curl_request("POST", url, data=payload)
-        return {item["id"]: item for item in data.get("data", [])}
-    except Exception:
-        return {}
-
 @roblox_get_followers.handle()
 async def handle_get_followers(event: Event):
     raw_text = str(event.get_message()).strip()
-    
-    keywords = ["/获取粉丝列表", "获取粉丝列表"]
-    uid_str = None
-    for kw in keywords:
-        if raw_text.startswith(kw):
-            uid_str = raw_text[len(kw):].strip()
-            break
+    uid_str = raw_text.replace("/获取粉丝列表", "").strip()
     
     if not uid_str or not uid_str.isdigit():
-        await roblox_get_followers.finish("请输入有效的Roblox用户ID（纯数字），例：/获取粉丝列表 123456789")
+        await roblox_get_followers.finish("请输入有效的用户ID（纯数字），例：/获取粉丝列表 123456789")
     uid = int(uid_str)
     
     await roblox_get_followers.send("稍等，正在获取粉丝列表...")
     total_start = time.time()
     
     try:
-        follower_list = await get_follower_list(uid)
-        if not follower_list:
-            await roblox_get_followers.finish("该用户暂无粉丝，或无法获取粉丝列表！")
+        followers = await get_followers(uid, 10)
+        if not followers:
+            await roblox_get_followers.finish("未找到该用户的粉丝列表或用户ID不存在！")
         
-        follower_list = follower_list[:10]
-        
-        follower_uids = [f.get("id", 0) for f in follower_list]
-        follower_info_map = await get_user_basic_info(follower_uids)
-        
-        output = f"🌟 用户ID {uid} 的粉丝列表（前10个）：\n\n"
-        for idx, follower in enumerate(follower_list):
+        output = f"❤️ 用户ID {uid} 的粉丝列表（前10个）\n\n"
+        for idx, follower in enumerate(followers, 1):
+            name = follower.get("name", "未知")
+            display_name = follower.get("displayName", "未知")
             follower_id = follower.get("id", 0)
-            follower_info = follower_info_map.get(follower_id, {})
-            username = follower_info.get("name", "未知")
-            display_name = follower_info.get("displayName", "未知")
-            followed_at = follower.get("created", "").split("T")[0] if follower.get("created") else "未知时间"
-            
-            output += (
-                f"【{idx+1}】\n"
-                f"用户ID：{follower_id}\n"
-                f"用户名：{username}\n"
-                f"展示名：{display_name}\n"
-                f"关注时间：{followed_at}\n\n"
-            )
+            output += f"{idx}. {name}（{display_name}）\n🆔 ID：{follower_id}\n\n"
         
         await roblox_get_followers.finish(output.strip())
 
-    except FinishedException:
-        raise
     except ActionFailed:
         await roblox_get_followers.finish("消息发送失败，可能是bot被禁言或对方已离线")
     except Exception as e:
