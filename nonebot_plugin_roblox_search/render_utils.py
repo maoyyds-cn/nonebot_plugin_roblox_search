@@ -4,21 +4,85 @@ import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
+def find_font():
+    font_candidates = []
+    
+    common_font_dirs = [
+        "/usr/share/fonts",
+        "/usr/share/fonts/truetype",
+        "/usr/share/fonts/opentype",
+        "/usr/local/share/fonts",
+        "/opt/fonts",
+        "/root/.fonts",
+        "C:/Windows/Fonts",
+    ]
+    
+    chinese_font_names = [
+        "wqy-microhei", "wqy-zenhei", "wqy-microhei-lite",
+        "msyh", "msyhbd", "msyhl",
+        "simsun", "simhei", "simkai", "simfang", "simli",
+        "NotoSansCJK", "NotoSerifCJK",
+        "SourceHanSans", "SourceHanSerif",
+        "HanziPen", "HGS Gyoshotai",
+        "STFangsong", "STKaiti", "STSong", "STHeiti",
+        "HiraginoSansGB", "PingFang",
+        "DroidSansFallback", "Noto Sans CJK SC",
+        "WenQuanYi", "AR PL", "ukai", "uming",
+        "DejaVuSans", "LiberationSans",
+    ]
+    
+    for font_dir in common_font_dirs:
+        if os.path.isdir(font_dir):
+            for root, dirs, files in os.walk(font_dir):
+                for filename in files:
+                    lower_name = filename.lower()
+                    for font_name in chinese_font_names:
+                        if font_name.lower() in lower_name:
+                            font_path = os.path.join(root, filename)
+                            font_candidates.append(font_path)
+    
+    for path in font_candidates:
+        try:
+            return ImageFont.truetype(path, 16)
+        except:
+            continue
+    
+    return None
+
 def get_font(size=14):
     font_paths = [
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto/NotoSansCJK-SC-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-SC-Regular.otf",
+        "/usr/share/fonts/opentype/source-han-sans/SourceHanSansSC-Regular.otf",
+        "/usr/share/fonts/truetype/arphic/ukai.ttc",
+        "/usr/share/fonts/truetype/arphic/uming.ttc",
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans.ttf",
         "C:/Windows/Fonts/msyh.ttc",
         "C:/Windows/Fonts/msyhbd.ttc",
         "C:/Windows/Fonts/simsun.ttc",
         "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/STSong.ttf",
+        "C:/Windows/Fonts/STHeiti.ttf",
     ]
+    
     for path in font_paths:
         if os.path.exists(path):
             try:
                 return ImageFont.truetype(path, size)
             except:
                 continue
+    
+    found_font = find_font()
+    if found_font:
+        return found_font.font_variant(size=size)
+    
     return ImageFont.load_default()
 
 def split_text(text, font, max_width):
