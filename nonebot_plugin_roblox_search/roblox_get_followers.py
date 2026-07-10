@@ -5,24 +5,48 @@ import time
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
-from .render_utils import rich_text_to_image
-from .http_utils import http_get, http_post
 
+HEADERS = [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+TIMEOUT = 30
+
+# 触发关键词：/获取粉丝列表
 roblox_get_followers = on_keyword(["/获取粉丝列表","获取粉丝列表"], priority=5, block=True)
 
+async def curl_request(method, url, data=None, headers=None):
+    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
+    if data:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
+    for h in (headers or HEADERS):
+        cmd += ["-H", h]
+    cmd.append(url)
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"curl 失败: {stderr.decode()}")
+    return json.loads(stdout.decode()) if stdout else {}
+
 async def get_follower_list(uid):
-    url = f"https://friends.roblox.com/v1/users/{uid}/followers?limit=10"
+    """获取用户粉丝列表"""
+    url = f"https://friends.roblox.com/v1/users/{uid}/followers?limit=10"  # 最多10个
     try:
-        data = await http_get(url)
+        data = await curl_request("GET", url)
         return data.get("data", [])
     except Exception:
         return []
 
 async def get_user_basic_info(uids):
+    """批量获取用户基础信息"""
     url = "https://users.roblox.com/v1/users/usernames"
     payload = {"userIds": uids, "excludeBannedUsers": False}
     try:
-        data = await http_post(url, data=payload)
+        data = await curl_request("POST", url, data=payload)
         return {item["id"]: item for item in data.get("data", [])}
     except Exception:
         return {}
@@ -71,12 +95,7 @@ async def handle_get_followers(event: Event):
                 f"关注时间：{followed_at}\n\n"
             )
         
-        try:
-            img_bytes = await rich_text_to_image(output.strip(), "🌟 Roblox 粉丝列表")
-            await roblox_get_followers.finish(MessageSegment.image(img_bytes))
-        except Exception as e:
-            print(f"[粉丝列表渲染错误] {e}")
-            await roblox_get_followers.finish(output.strip())
+        await roblox_get_followers.finish(output.strip())
 
     except FinishedException:
         raise

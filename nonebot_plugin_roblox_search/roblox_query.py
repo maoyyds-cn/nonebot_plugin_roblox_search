@@ -7,28 +7,51 @@ from dateutil import relativedelta
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
-from .render_utils import rich_text_to_image
-from .http_utils import http_get, http_post
 
+HEADERS = [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+TIMEOUT = 30
+
+# 使用 on_keyword，匹配多个关键词（无论是否带斜杠）
 roblox_search = on_keyword(["用户名搜索","/用户名搜索", "roblox查询", "查roblox"], priority=5, block=True)
+
+async def curl_request(method, url, data=None, headers=None):
+    """使用 curl 执行 HTTP 请求，返回 JSON 数据"""
+    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
+    if data:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
+    for h in (headers or HEADERS):
+        cmd += ["-H", h]
+    cmd.append(url)
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"curl 失败: {stderr.decode()}")
+    return json.loads(stdout.decode())
 
 async def username_to_uid(username):
     url = "https://users.roblox.com/v1/usernames/users"
     payload = {"usernames": [username], "excludeBannedUsers": False}
-    data = await http_post(url, data=payload)
+    data = await curl_request("POST", url, data=payload)
     if not data.get("data"):
         return None
     return data["data"][0]["id"]
 
 async def get_user_info(uid):
     url = f"https://users.roblox.com/v1/users/{uid}"
-    return await http_get(url)
+    return await curl_request("GET", url)
 
 async def get_user_presence(uids):
     url = "https://presence.roblox.com/v1/presence/users"
     payload = {"userIds": uids}
     try:
-        data = await http_post(url, data=payload)
+        data = await curl_request("POST", url, data=payload)
         presences = data.get("userPresences", [])
         return presences[0] if presences else {}
     except Exception:
@@ -40,7 +63,7 @@ async def get_count(uid):
     following_url = f"https://friends.roblox.com/v1/users/{uid}/followings/count"
     async def fetch(url):
         try:
-            data = await http_get(url)
+            data = await curl_request("GET", url)
             return data.get("count", 0)
         except Exception:
             return 0
@@ -50,7 +73,7 @@ async def get_count(uid):
 async def get_user_groups(uid):
     url = f"https://groups.roblox.com/v1/users/{uid}/groups/roles"
     try:
-        data = await http_get(url)
+        data = await curl_request("GET", url)
         return data.get("data", [])
     except Exception:
         return []
@@ -58,7 +81,7 @@ async def get_user_groups(uid):
 async def get_avatar_img_url(uid):
     url = f"https://thumbnails.roblox.com/v1/users/avatar?userIds={uid}&size=420x420&format=Png&isCircular=false"
     try:
-        data = await http_get(url)
+        data = await curl_request("GET", url)
         thumb_data = data.get("data", [])
         if not thumb_data:
             return ""
@@ -77,16 +100,20 @@ def calc_register_time(created_str):
 
 @roblox_search.handle()
 async def handle_search(event: Event):
+    # 获取原始消息文本
     raw_msg = event.get_message()
     raw_text = str(raw_msg).strip()
     
+    # 去掉关键词前缀（支持多个关键词）
     keywords = ["用户名搜索", "roblox查询", "查roblox"]
     username = None
     for kw in keywords:
         if raw_text.startswith(kw):
             username = raw_text[len(kw):].strip()
             break
+    # 如果没有匹配到关键词（理论上不会，因为是 on_keyword 触发），但以防万一
     if username is None:
+        # 尝试提取第一个空格后的内容
         parts = raw_text.split(maxsplit=1)
         if len(parts) > 1:
             username = parts[1].strip()
@@ -153,6 +180,7 @@ async def handle_search(event: Event):
         if len(desc) > 300:
             desc = desc[:300] + "......(内容过长已截断)"
         output = (
+            f"📄 Roblox 用户信息查询\n"
             f"👤 用户名：{raw_name}\n"
             f"🏷️ 展示名：{display_name}\n"
             f"🆔 用户ID：{uid}\n"
@@ -165,16 +193,11 @@ async def handle_search(event: Event):
             f"📝 用户简介：\n{desc}\n\n"
             f"🏠 已加入群组(前5个)：\n{group_text}"
         )
-        try:
-            img_bytes = await rich_text_to_image(output, "📄 Roblox 用户信息查询", avatar_url)
-            await roblox_search.finish(MessageSegment.image(img_bytes))
-        except Exception as e:
-            print(f"[用户查询渲染错误] {e}")
-            if avatar_url:
-                msg = MessageSegment.image(avatar_url) + output
-            else:
-                msg = output
-            await roblox_search.finish(msg)
+        if avatar_url:
+            msg = MessageSegment.image(avatar_url) + output
+        else:
+            msg = output
+        await roblox_search.finish(msg)
 
     except FinishedException:
         raise

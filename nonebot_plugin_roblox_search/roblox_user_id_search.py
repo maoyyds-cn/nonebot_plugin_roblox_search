@@ -7,34 +7,60 @@ from dateutil import relativedelta
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
-from .render_utils import rich_text_to_image
-from .http_utils import http_get, http_post
 
+HEADERS = [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+TIMEOUT = 30
+
+# 触发关键词：/用户ID搜索
 roblox_user_id_search = on_keyword(["/用户ID搜索","用户ID搜索"], priority=5, block=True)
 
+async def curl_request(method, url, data=None, headers=None):
+    cmd = ["curl", "-s", "-X", method, "--max-time", str(TIMEOUT)]
+    if data:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(data)]
+    for h in (headers or HEADERS):
+        cmd += ["-H", h]
+    cmd.append(url)
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"curl 失败: {stderr.decode()}")
+    return json.loads(stdout.decode()) if stdout else {}
+
 async def get_user_info(uid):
+    """根据UID获取用户信息"""
     url = f"https://users.roblox.com/v1/users/{uid}"
-    return await http_get(url)
+    return await curl_request("GET", url)
 
 async def get_user_premium(uid):
+    """判断Premium会员"""
     url = f"https://premiumfeatures.roblox.com/v1/users/{uid}/validate-membership"
     try:
-        return (await http_get(url)).get("isValid", False)
+        return (await curl_request("GET", url)).get("isValid", False)
     except Exception:
         return False
 
 async def get_avatar_img_url(uid):
+    """获取头像链接"""
     url = f"https://thumbnails.roblox.com/v1/users/avatar?userIds={uid}&size=420x420&format=Png&isCircular=false"
     try:
-        data = await http_get(url)
+        data = await curl_request("GET", url)
         return data.get("data", [{}])[0].get("imageUrl", "")
     except Exception:
         return ""
 
 async def get_user_presence(uids):
+    """获取在线状态"""
     url = "https://presence.roblox.com/v1/presence/users"
     try:
-        data = await http_post(url, data={"userIds": uids})
+        data = await curl_request("POST", url, data={"userIds": uids})
         return data.get("userPresences", [{}])[0]
     except Exception:
         return {}
@@ -52,6 +78,7 @@ def calc_register_time(created_str):
 
 @roblox_user_id_search.handle()
 async def handle_user_id_search(event: Event):
+    # 提取用户ID
     raw_text = str(event.get_message()).strip()
     uid_str = raw_text.replace("/用户ID搜索", "").strip()
     
@@ -63,6 +90,7 @@ async def handle_user_id_search(event: Event):
     total_start = time.time()
     
     try:
+        # 并发请求数据
         tasks = [
             get_user_info(uid),
             get_user_premium(uid),
@@ -72,6 +100,7 @@ async def handle_user_id_search(event: Event):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         user_info, is_premium, avatar_url, presence = results
         
+        # 异常兜底
         if isinstance(user_info, Exception) or not user_info:
             await roblox_user_id_search.finish("未找到该用户ID对应的信息！")
         if isinstance(is_premium, Exception):
@@ -81,6 +110,7 @@ async def handle_user_id_search(event: Event):
         if isinstance(presence, Exception):
             presence = {}
         
+        # 解析信息
         display_name = user_info.get("displayName", "未知")
         raw_name = user_info.get("name", "未知")
         desc = user_info.get("description", "").strip() or "无简介"
@@ -88,6 +118,7 @@ async def handle_user_id_search(event: Event):
         is_banned = user_info.get("isBanned", False)
         reg_date, reg_full_time = calc_register_time(created)
         
+        # 在线状态
         online_status = "离线"
         device = "无"
         presence_type = presence.get("userPresenceType", 0)
@@ -99,9 +130,12 @@ async def handle_user_id_search(event: Event):
             online_status = "网页在线"
             device = "Roblox网页端"
         
+        # 会员状态
         premium_text = "是" if is_premium else "否"
         
+        # 组装输出
         output = (
+            f"📄 Roblox 用户ID查询结果\n"
             f"🆔 用户ID：{uid}\n"
             f"👤 用户名：{raw_name}\n"
             f"🏷️ 展示名：{display_name}\n"
@@ -114,16 +148,12 @@ async def handle_user_id_search(event: Event):
             f"📝 简介：\n{desc[:300]}{'......' if len(desc)>300 else ''}"
         )
         
-        try:
-            img_bytes = await rich_text_to_image(output, "📄 Roblox 用户ID查询结果", avatar_url)
-            await roblox_user_id_search.finish(MessageSegment.image(img_bytes))
-        except Exception as e:
-            print(f"[用户ID查询渲染错误] {e}")
-            if avatar_url:
-                msg = MessageSegment.image(avatar_url) + output
-            else:
-                msg = output
-            await roblox_user_id_search.finish(msg)
+        # 发送结果
+        if avatar_url:
+            msg = MessageSegment.image(avatar_url) + output
+        else:
+            msg = output
+        await roblox_user_id_search.finish(msg)
 
     except FinishedException:
         raise
