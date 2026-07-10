@@ -2,9 +2,10 @@ import asyncio
 import traceback
 import time
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed
 from .http_utils import http_get
+from .render_utils import text_to_image
 
 roblox_get_followings = on_keyword(["/获取关注列表","获取关注列表"], priority=5, block=True)
 
@@ -33,14 +34,15 @@ async def handle_get_followings(event: Event):
         if not followings:
             await roblox_get_followings.finish("未找到该用户的关注列表或用户ID不存在！")
         
-        output = f"👁️ 用户ID {uid} 的关注列表（前10个）\n\n"
+        output = ""
         for idx, following in enumerate(followings, 1):
             name = following.get("name", "未知")
             display_name = following.get("displayName", "未知")
             following_id = following.get("id", 0)
             output += f"{idx}. {name}（{display_name}）\n🆔 ID：{following_id}\n\n"
         
-        await roblox_get_followings.finish(output.strip())
+        img_bytes = await text_to_image(output.strip(), title=f"👁️ 用户ID {uid} 的关注列表（前10个）")
+        await roblox_get_followings.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_get_followings.finish("消息发送失败，可能是bot被禁言或对方已离线")

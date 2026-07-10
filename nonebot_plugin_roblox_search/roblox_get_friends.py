@@ -2,9 +2,10 @@ import asyncio
 import traceback
 import time
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed
 from .http_utils import http_get
+from .render_utils import text_to_image
 
 roblox_get_friends = on_keyword(["/获取好友列表","获取好友列表"], priority=5, block=True)
 
@@ -33,14 +34,15 @@ async def handle_get_friends(event: Event):
         if not friends:
             await roblox_get_friends.finish("未找到该用户的好友列表或用户ID不存在！")
         
-        output = f"👥 用户ID {uid} 的好友列表（前10个）\n\n"
+        output = ""
         for idx, friend in enumerate(friends, 1):
             name = friend.get("name", "未知")
             display_name = friend.get("displayName", "未知")
             friend_id = friend.get("id", 0)
             output += f"{idx}. {name}（{display_name}）\n🆔 ID：{friend_id}\n\n"
         
-        await roblox_get_friends.finish(output.strip())
+        img_bytes = await text_to_image(output.strip(), title=f"👥 用户ID {uid} 的好友列表（前10个）")
+        await roblox_get_friends.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_get_friends.finish("消息发送失败，可能是bot被禁言或对方已离线")

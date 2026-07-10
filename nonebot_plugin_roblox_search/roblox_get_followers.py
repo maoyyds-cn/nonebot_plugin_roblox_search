@@ -2,9 +2,10 @@ import asyncio
 import traceback
 import time
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed
 from .http_utils import http_get
+from .render_utils import text_to_image
 
 roblox_get_followers = on_keyword(["/获取粉丝列表","获取粉丝列表"], priority=5, block=True)
 
@@ -33,14 +34,15 @@ async def handle_get_followers(event: Event):
         if not followers:
             await roblox_get_followers.finish("未找到该用户的粉丝列表或用户ID不存在！")
         
-        output = f"❤️ 用户ID {uid} 的粉丝列表（前10个）\n\n"
+        output = ""
         for idx, follower in enumerate(followers, 1):
             name = follower.get("name", "未知")
             display_name = follower.get("displayName", "未知")
             follower_id = follower.get("id", 0)
             output += f"{idx}. {name}（{display_name}）\n🆔 ID：{follower_id}\n\n"
         
-        await roblox_get_followers.finish(output.strip())
+        img_bytes = await text_to_image(output.strip(), title=f"❤️ 用户ID {uid} 的粉丝列表（前10个）")
+        await roblox_get_followers.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_get_followers.finish("消息发送失败，可能是bot被禁言或对方已离线")

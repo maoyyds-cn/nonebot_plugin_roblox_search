@@ -3,9 +3,10 @@ import traceback
 import time
 from datetime import datetime
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
+from .render_utils import text_to_image
 
 roblox_game_id_search = on_keyword(["/游戏ID搜索","游戏ID搜索"], priority=5, block=True)
 
@@ -86,7 +87,6 @@ async def handle_game_id_search(event: Event):
             servers_text = "暂无公开服务器信息"
         
         output = (
-            f"🎮 Roblox 游戏ID查询结果\n"
             f"🆔 游戏ID：{game_id}\n"
             f"📛 游戏名：{name}\n"
             f"👤 开发者：{creator_name}\n"
@@ -99,11 +99,8 @@ async def handle_game_id_search(event: Event):
             f"🌐 公开服务器(前3个)：\n{servers_text}"
         )
         
-        if icon_url:
-            msg = MessageSegment.image(icon_url) + output
-        else:
-            msg = output
-        await roblox_game_id_search.finish(msg)
+        img_bytes = await text_to_image(output, title="🎮 Roblox 游戏ID查询结果", avatar_url=icon_url)
+        await roblox_game_id_search.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_game_id_search.finish("消息发送失败，可能是bot被禁言或对方已离线")

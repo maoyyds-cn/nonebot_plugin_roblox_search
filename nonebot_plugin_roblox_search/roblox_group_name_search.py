@@ -3,9 +3,10 @@ import traceback
 import time
 from datetime import datetime
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
+from .render_utils import text_to_image
 
 roblox_group_name_search = on_keyword(["/群组名搜索","群组名搜索"], priority=5, block=True)
 
@@ -66,7 +67,6 @@ async def handle_group_name_search(event: Event):
             create_date = None
         
         output = (
-            f"🏠 Roblox 群组搜索结果\n"
             f"🆔 群组ID：{gid}\n"
             f"📛 群组名：{name}\n"
             f"👥 成员数量：{member_count:,}\n"
@@ -76,11 +76,8 @@ async def handle_group_name_search(event: Event):
             f"📝 群组描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
         )
         
-        if icon_url:
-            msg = MessageSegment.image(icon_url) + output
-        else:
-            msg = output
-        await roblox_group_name_search.finish(msg)
+        img_bytes = await text_to_image(output, title="🏠 Roblox 群组搜索结果", avatar_url=icon_url)
+        await roblox_group_name_search.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_group_name_search.finish("消息发送失败，可能是bot被禁言或对方已离线")

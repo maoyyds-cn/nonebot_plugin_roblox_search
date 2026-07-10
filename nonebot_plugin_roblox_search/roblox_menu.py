@@ -1,14 +1,12 @@
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message
-from nonebot.exception import ActionFailed
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
+from .render_utils import text_to_image
 
-# 触发关键词：/菜单
 roblox_menu = on_keyword(["/menu","menu"], priority=5, block=True)
 
 @roblox_menu.handle()
 async def handle_menu(event: Event):
     menu_text = """
-📋 Roblox 查询机器人指令菜单(指令前加斜杠或者空格都行)
 ├─ /用户名搜索 [用户名] → 根据用户名查询用户信息
 ├─ /群组名搜索 [群组名] → 根据群组名搜索群组
 ├─ /游戏名搜索 [游戏名] → 根据游戏名搜索游戏
@@ -21,4 +19,5 @@ async def handle_menu(event: Event):
 
 💡 示例：/用户名搜索 maochina_4
     """.strip()
-    await roblox_menu.finish(menu_text)
+    img_bytes = await text_to_image(menu_text, title="📋 Roblox 查询机器人指令菜单")
+    await roblox_menu.finish(MessageSegment.image(img_bytes))

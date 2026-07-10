@@ -7,6 +7,7 @@ from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get, http_post
+from .render_utils import text_to_image
 
 roblox_search = on_keyword(["用户名搜索","/用户名搜索", "roblox查询", "查roblox"], priority=5, block=True)
 
@@ -151,7 +152,6 @@ async def handle_search(event: Event):
         if len(desc) > 300:
             desc = desc[:300] + "......(内容过长已截断)"
         output = (
-            f"📄 Roblox 用户信息查询\n"
             f"👤 用户名：{raw_name}\n"
             f"🏷️ 展示名：{display_name}\n"
             f"🆔 用户ID：{uid}\n"
@@ -164,11 +164,8 @@ async def handle_search(event: Event):
             f"📝 用户简介：\n{desc}\n\n"
             f"🏠 已加入群组(前5个)：\n{group_text}"
         )
-        if avatar_url:
-            msg = MessageSegment.image(avatar_url) + output
-        else:
-            msg = output
-        await roblox_search.finish(msg)
+        img_bytes = await text_to_image(output, title="📄 Roblox 用户信息查询", avatar_url=avatar_url)
+        await roblox_search.finish(MessageSegment.image(img_bytes))
 
     except FinishedException:
         raise

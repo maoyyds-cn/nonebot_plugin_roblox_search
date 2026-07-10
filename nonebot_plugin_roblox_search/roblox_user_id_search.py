@@ -4,9 +4,10 @@ import time
 from datetime import datetime
 from dateutil import relativedelta
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, Message, MessageSegment
+from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get, http_post
+from .render_utils import text_to_image
 
 roblox_user_id_search = on_keyword(["/用户ID搜索","用户ID搜索"], priority=5, block=True)
 
@@ -100,7 +101,6 @@ async def handle_user_id_search(event: Event):
         premium_text = "是" if is_premium else "否"
         
         output = (
-            f"📄 Roblox 用户ID查询结果\n"
             f"🆔 用户ID：{uid}\n"
             f"👤 用户名：{raw_name}\n"
             f"🏷️ 展示名：{display_name}\n"
@@ -113,11 +113,8 @@ async def handle_user_id_search(event: Event):
             f"📝 简介：\n{desc[:300]}{'......' if len(desc)>300 else ''}"
         )
         
-        if avatar_url:
-            msg = MessageSegment.image(avatar_url) + output
-        else:
-            msg = output
-        await roblox_user_id_search.finish(msg)
+        img_bytes = await text_to_image(output, title="📄 Roblox 用户ID查询结果", avatar_url=avatar_url)
+        await roblox_user_id_search.finish(MessageSegment.image(img_bytes))
 
     except ActionFailed:
         await roblox_user_id_search.finish("消息发送失败，可能是bot被禁言或对方已离线")
