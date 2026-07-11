@@ -6,7 +6,6 @@ from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
-from .render_utils import text_to_image
 
 roblox_game_name_search = on_keyword(["/游戏名搜索","游戏名搜索"], priority=5, block=True)
 
@@ -29,7 +28,7 @@ async def get_game_icon(game_id):
 @roblox_game_name_search.handle()
 async def handle_game_name_search(event: Event):
     raw_text = str(event.get_message()).strip()
-    game_name = raw_text.replace("/游戏名搜索", "").strip()
+    game_name = raw_text.replace("游戏名搜索", "").replace("/游戏名搜索", "").strip()
     
     if not game_name:
         await roblox_game_name_search.finish("请输入游戏名，例：/游戏名搜索 Adopt Me")
@@ -77,24 +76,35 @@ async def handle_game_name_search(event: Event):
             create_date = None
             update_date = None
         
-        output = (
-            f"🆔 游戏ID：{game_id}\n"
-            f"📍 地点ID：{place_id}\n"
-            f"📛 游戏名：{name}\n"
-            f"👤 开发者：{creator_name}\n"
-            f"👥 当前游玩：{playing:,}\n"
-            f"👁️ 总访问量：{visits:,}\n"
-            f"❤️ 收藏数：{favorites:,}\n"
-            f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
-            f"🔄 更新时间：{update_date.strftime('%Y-%m-%d') if update_date else '未知'}\n\n"
-            f"📝 游戏描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
-        )
+        output = f"🎮 Roblox 游戏搜索结果\n\n"
+        output += f"🆔 游戏ID：{game_id}\n"
+        output += f"📍 地点ID：{place_id}\n"
+        output += f"📛 游戏名：{name}\n"
+        output += f"👤 开发者：{creator_name}\n"
+        output += f"👥 当前游玩：{playing:,}\n"
+        output += f"👁️ 总访问量：{visits:,}\n"
+        output += f"❤️ 收藏数：{favorites:,}\n"
+        output += f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
+        output += f"🔄 更新时间：{update_date.strftime('%Y-%m-%d') if update_date else '未知'}\n\n"
+        output += f"📝 游戏描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
         
-        img_bytes = await text_to_image(output, title="🎮 Roblox 游戏搜索结果", avatar_url=icon_url)
-        await roblox_game_name_search.finish(MessageSegment.image(img_bytes))
+        messages = []
+        if icon_url:
+            try:
+                import requests
+                response = requests.get(icon_url, timeout=5)
+                if response.status_code == 200:
+                    messages.append(MessageSegment.image(response.content))
+            except:
+                pass
+        
+        messages.append(output)
+        await roblox_game_name_search.finish(messages)
 
     except ActionFailed:
         await roblox_game_name_search.finish("消息发送失败，可能是bot被禁言或对方已离线")
+    except FinishedException:
+        raise
     except Exception as e:
         print("[游戏名搜索错误]", traceback.format_exc())
         await roblox_game_name_search.finish(f"查询失败：{str(e)}")

@@ -6,7 +6,6 @@ from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
-from .render_utils import text_to_image
 
 roblox_group_name_search = on_keyword(["/群组名搜索","群组名搜索"], priority=5, block=True)
 
@@ -29,7 +28,7 @@ async def get_group_icon(gid):
 @roblox_group_name_search.handle()
 async def handle_group_name_search(event: Event):
     raw_text = str(event.get_message()).strip()
-    group_name = raw_text.replace("/群组名搜索", "").strip()
+    group_name = raw_text.replace("群组名搜索", "").replace("/群组名搜索", "").strip()
     
     if not group_name:
         await roblox_group_name_search.finish("请输入群组名，例：/群组名搜索 Roblox")
@@ -66,21 +65,32 @@ async def handle_group_name_search(event: Event):
         except:
             create_date = None
         
-        output = (
-            f"🆔 群组ID：{gid}\n"
-            f"📛 群组名：{name}\n"
-            f"👥 成员数量：{member_count:,}\n"
-            f"👤 群主：{owner_name}\n"
-            f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
-            f"🌐 是否公开：{'是' if is_public else '否'}\n\n"
-            f"📝 群组描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
-        )
+        output = f"🏠 Roblox 群组搜索结果\n\n"
+        output += f"🆔 群组ID：{gid}\n"
+        output += f"📛 群组名：{name}\n"
+        output += f"👥 成员数量：{member_count:,}\n"
+        output += f"👤 群主：{owner_name}\n"
+        output += f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
+        output += f"🌐 是否公开：{'是' if is_public else '否'}\n\n"
+        output += f"📝 群组描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
         
-        img_bytes = await text_to_image(output, title="🏠 Roblox 群组搜索结果", avatar_url=icon_url)
-        await roblox_group_name_search.finish(MessageSegment.image(img_bytes))
+        messages = []
+        if icon_url:
+            try:
+                import requests
+                response = requests.get(icon_url, timeout=5)
+                if response.status_code == 200:
+                    messages.append(MessageSegment.image(response.content))
+            except:
+                pass
+        
+        messages.append(output)
+        await roblox_group_name_search.finish(messages)
 
     except ActionFailed:
         await roblox_group_name_search.finish("消息发送失败，可能是bot被禁言或对方已离线")
+    except FinishedException:
+        raise
     except Exception as e:
         print("[群组名搜索错误]", traceback.format_exc())
         await roblox_group_name_search.finish(f"查询失败：{str(e)}")

@@ -4,52 +4,13 @@ import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
-def find_font():
-    font_candidates = []
-    
-    common_font_dirs = [
-        "/usr/share/fonts",
-        "/usr/share/fonts/truetype",
-        "/usr/share/fonts/opentype",
-        "/usr/local/share/fonts",
-        "/opt/fonts",
-        "/root/.fonts",
-        "C:/Windows/Fonts",
-    ]
-    
-    chinese_font_names = [
-        "wqy-microhei", "wqy-zenhei", "wqy-microhei-lite",
-        "msyh", "msyhbd", "msyhl",
-        "simsun", "simhei", "simkai", "simfang", "simli",
-        "NotoSansCJK", "NotoSerifCJK",
-        "SourceHanSans", "SourceHanSerif",
-        "HanziPen", "HGS Gyoshotai",
-        "STFangsong", "STKaiti", "STSong", "STHeiti",
-        "HiraginoSansGB", "PingFang",
-        "DroidSansFallback", "Noto Sans CJK SC",
-        "WenQuanYi", "AR PL", "ukai", "uming",
-        "DejaVuSans", "LiberationSans",
-    ]
-    
-    for font_dir in common_font_dirs:
-        if os.path.isdir(font_dir):
-            for root, dirs, files in os.walk(font_dir):
-                for filename in files:
-                    lower_name = filename.lower()
-                    for font_name in chinese_font_names:
-                        if font_name.lower() in lower_name:
-                            font_path = os.path.join(root, filename)
-                            font_candidates.append(font_path)
-    
-    for path in font_candidates:
-        try:
-            return ImageFont.truetype(path, 16)
-        except:
-            continue
-    
-    return None
+FONT_CACHE = {}
 
 def get_font(size=14):
+    cache_key = size
+    if cache_key in FONT_CACHE:
+        return FONT_CACHE[cache_key]
+    
     font_paths = [
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
@@ -62,7 +23,6 @@ def get_font(size=14):
         "/usr/share/fonts/truetype/arphic/ukai.ttc",
         "/usr/share/fonts/truetype/arphic/uming.ttc",
         "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-        "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans.ttf",
         "C:/Windows/Fonts/msyh.ttc",
         "C:/Windows/Fonts/msyhbd.ttc",
@@ -75,14 +35,50 @@ def get_font(size=14):
     for path in font_paths:
         if os.path.exists(path):
             try:
-                return ImageFont.truetype(path, size)
-            except:
+                font = ImageFont.truetype(path, size)
+                FONT_CACHE[cache_key] = font
+                return font
+            except Exception:
                 continue
     
-    found_font = find_font()
-    if found_font:
-        return found_font.font_variant(size=size)
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["fc-list", ":lang=zh", "file"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    font_path = line.split(':')[0]
+                    try:
+                        font = ImageFont.truetype(font_path, size)
+                        FONT_CACHE[cache_key] = font
+                        return font
+                    except Exception:
+                        continue
+    except Exception:
+        pass
     
+    try:
+        result = subprocess.run(
+            ["fc-list", "file"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    font_path = line.split(':')[0]
+                    try:
+                        font = ImageFont.truetype(font_path, size)
+                        FONT_CACHE[cache_key] = font
+                        return font
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+    
+    FONT_CACHE[cache_key] = ImageFont.load_default()
     return ImageFont.load_default()
 
 def split_text(text, font, max_width):
@@ -106,69 +102,94 @@ def split_text(text, font, max_width):
             lines.append(current_line)
     return lines
 
-async def text_to_image(text: str, title: str = "", avatar_url: str = "") -> bytes:
+async def menu_to_image() -> bytes:
     font = get_font(16)
-    title_font = get_font(22)
+    title_font = get_font(24)
     small_font = get_font(12)
     
-    content_width = 700
+    content_width = 600
     padding = 40
-    line_height = font.getbbox("A")[3] - font.getbbox("A")[1] + 6
+    line_height = font.getbbox("A")[3] - font.getbbox("A")[1] + 8
     
-    lines = split_text(text, font, content_width - padding * 2)
+    menu_items = [
+        ("🔍 用户查询", [
+            ("用户名搜索 [用户名]", "通过用户名查询用户完整资料"),
+            ("用户ID搜索 [数字ID]", "直接UID查询用户"),
+        ]),
+        ("🏢 群组查询", [
+            ("群组名搜索 [群组名]", "模糊搜索群组并展示详情"),
+            ("群组ID搜索 [数字ID]", "群组ID精准查询、职位列表"),
+        ]),
+        ("🎮 游戏查询", [
+            ("游戏名搜索 [游戏名]", "搜索游戏、在线人数、访问量"),
+            ("游戏ID搜索 [数字ID]", "游戏详情+公开服务器列表"),
+        ]),
+        ("👥 社交查询", [
+            ("获取好友列表 [用户ID]", "读取用户前10位好友"),
+            ("获取粉丝列表 [用户ID]", "读取前10位粉丝"),
+            ("获取关注列表 [用户ID]", "读取前10位关注"),
+        ]),
+    ]
     
-    title_height = 0
-    if title:
-        title_lines = split_text(title, title_font, content_width - padding * 2)
-        title_height = len(title_lines) * (line_height + 4) + 20
+    total_lines = 2
+    for category, items in menu_items:
+        total_lines += 2 + len(items)
     
-    footer_height = 40
-    image_height = title_height + len(lines) * line_height + padding * 2 + footer_height
-    
-    if avatar_url:
-        image_height += 140
-    
-    img = Image.new('RGB', (content_width, image_height), color=(18, 22, 35))
+    image_height = padding * 2 + len(menu_items) * 100 + 100
+    img = Image.new('RGB', (content_width, image_height), color=(15, 18, 25))
     draw = ImageDraw.Draw(img)
     
-    draw.rectangle([(5, 5), (content_width - 5, image_height - 5)], outline=(60, 120, 255), width=2)
+    draw.rounded_rectangle([(5, 5), (content_width - 5, image_height - 5)], 
+                          radius=15, outline=(50, 120, 255), width=2)
     
-    y = padding
-    if title:
-        for title_line in title_lines:
-            bbox = title_font.getbbox(title_line)
-            text_width = bbox[2] - bbox[0]
-            x = (content_width - text_width) // 2
-            draw.text((x, y), title_line, font=title_font, fill=(60, 180, 255))
-            y += line_height + 4
-        y += 10
-        draw.line([(padding, y), (content_width - padding, y)], fill=(40, 80, 150), width=2)
+    gradient = Image.new('RGBA', (content_width, 80), color=(0, 0, 0, 0))
+    grad_draw = ImageDraw.Draw(gradient)
+    for i in range(80):
+        alpha = int(255 * (1 - i / 80))
+        grad_draw.line([(0, i), (content_width, i)], fill=(50, 120, 255, alpha // 3))
+    img.paste(gradient, (0, 0), gradient)
+    
+    title_text = "🎮 Roblox 查询机器人"
+    bbox = title_font.getbbox(title_text)
+    title_width = bbox[2] - bbox[0]
+    draw.text(((content_width - title_width) // 2, padding), title_text, 
+              font=title_font, fill=(100, 200, 255))
+    
+    subtitle_text = "功能菜单"
+    bbox = font.getbbox(subtitle_text)
+    sub_width = bbox[2] - bbox[0]
+    draw.text(((content_width - sub_width) // 2, padding + 45), subtitle_text, 
+              font=font, fill=(150, 180, 220))
+    
+    y = padding + 90
+    draw.line([(padding, y), (content_width - padding, y)], fill=(40, 80, 150), width=1)
+    y += 20
+    
+    for category, items in menu_items:
+        cat_bbox = font.getbbox(category)
+        cat_width = cat_bbox[2] - cat_bbox[0]
+        draw.text((padding, y), category, font=font, fill=(80, 180, 255))
+        
+        draw.rounded_rectangle([
+            (padding - 5, y - 5), 
+            (padding + cat_width + 10, y + cat_bbox[3] - cat_bbox[1] + 5)
+        ], radius=8, outline=(80, 180, 255), width=1)
+        
+        y += 35
+        
+        for cmd, desc in items:
+            cmd_bbox = font.getbbox(cmd)
+            draw.text((padding + 15, y), cmd, font=font, fill=(200, 215, 240))
+            draw.text((padding + 200, y), desc, font=small_font, fill=(120, 140, 170))
+            y += line_height
+        
         y += 15
     
-    if avatar_url:
-        try:
-            import requests
-            response = requests.get(avatar_url, timeout=10)
-            if response.status_code == 200:
-                avatar_img = Image.open(io.BytesIO(response.content))
-                avatar_size = 100
-                avatar_img = avatar_img.resize((avatar_size, avatar_size))
-                avatar_x = (content_width - avatar_size) // 2
-                draw.ellipse([(avatar_x - 5, y - 5), (avatar_x + avatar_size + 5, y + avatar_size + 5)], outline=(60, 120, 255), width=3)
-                img.paste(avatar_img, (avatar_x, y))
-                y += avatar_size + 20
-        except:
-            pass
-    
-    for line in lines:
-        draw.text((padding, y), line, font=font, fill=(200, 210, 230))
-        y += line_height
-    
-    footer_text = "Roblox查询机器人 · Powered by NoneBot2"
+    footer_text = "Powered by NoneBot2 · 版本 1.1.6"
     bbox = small_font.getbbox(footer_text)
     footer_width = bbox[2] - bbox[0]
-    footer_x = (content_width - footer_width) // 2
-    draw.text((footer_x, image_height - 30), footer_text, font=small_font, fill=(80, 100, 130))
+    draw.text(((content_width - footer_width) // 2, image_height - 30), 
+              footer_text, font=small_font, fill=(60, 80, 110))
     
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
