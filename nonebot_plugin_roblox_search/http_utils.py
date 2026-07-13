@@ -2,6 +2,8 @@ import json
 import asyncio
 import re
 import time
+import os
+import urllib.parse
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -16,8 +18,31 @@ MAX_RETRIES = 3
 BASE_RETRY_DELAY = 1.0
 
 
+def get_curl_command():
+    if os.name == 'nt':
+        return "curl.exe"
+    else:
+        return "curl"
+
+
+def encode_url(url: str) -> str:
+    try:
+        parts = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parts.query)
+        encoded_query = {}
+        for key, values in query.items():
+            encoded_query[key] = [urllib.parse.quote(v, safe='') for v in values]
+        new_query = urllib.parse.urlencode(encoded_query, doseq=True)
+        return urllib.parse.urlunparse(parts._replace(query=new_query))
+    except:
+        return url
+
+
 def parse_http_response(raw_response: str):
     lines = raw_response.split('\r\n')
+    if not lines:
+        lines = raw_response.split('\n')
+    
     headers = {}
     body_start = 0
     
@@ -39,7 +64,8 @@ def parse_http_response(raw_response: str):
 
 async def curl_request(url: str, method: str = "GET", data: dict = None, headers: dict = None):
     all_headers = headers or HEADERS
-    curl_args = ["curl.exe", "-s", "-i", "-X", method]
+    curl_cmd = get_curl_command()
+    curl_args = [curl_cmd, "-s", "-i", "-X", method]
     
     for key, value in all_headers.items():
         curl_args.extend(["-H", f"{key}: {value}"])
@@ -47,7 +73,8 @@ async def curl_request(url: str, method: str = "GET", data: dict = None, headers
     if data:
         curl_args.extend(["-d", json.dumps(data)])
     
-    curl_args.append(url)
+    encoded_url = encode_url(url)
+    curl_args.append(encoded_url)
     
     try:
         process = await asyncio.create_subprocess_exec(

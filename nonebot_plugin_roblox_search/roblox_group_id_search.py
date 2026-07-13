@@ -68,7 +68,7 @@ async def handle_group_id_search(event: Event):
         
         roles_text = ""
         if roles:
-            for role in roles[:5]:
+            for role in roles[:10]:
                 role_name = role.get("name", "未知")
                 rank = role.get("rank", 0)
                 member_count_role = role.get("memberCount", 0)
@@ -84,7 +84,7 @@ async def handle_group_id_search(event: Event):
         output += f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
         output += f"🌐 是否公开：{'是' if is_public else '否'}\n\n"
         output += f"📝 群组描述：\n{description[:200]}{'......' if len(description)>200 else ''}\n\n"
-        output += f"🏆 职位列表(前5个)：\n{roles_text}"
+        output += f"🏆 职位列表(前10个)：\n{roles_text}"
         
         messages = []
         if icon_url:

@@ -29,7 +29,7 @@ async def get_user_status(user_id):
     return None
 
 async def get_groups(user_id):
-    url = f"https://groups.roblox.com/v1/users/{user_id}/groups/roles?limit=5"
+    url = f"https://groups.roblox.com/v1/users/{user_id}/groups/roles?limit=10"
     try:
         data = await http_get(url)
         return data.get("data", [])
@@ -158,10 +158,10 @@ async def handle_user_id_search(event: Event):
         output += f"🚫 账号封禁：{'是' if is_banned else '否'}\n"
         
         if description:
-            output += f"\n📝 用户简介：\n{description}\n"
+            output += f"\n📝 用户简介：\n{description[:200]}{'......' if len(description)>200 else ''}\n"
         
         if groups:
-            output += f"\n🏠 已加入群组(前5个)：\n"
+            output += f"\n🏠 已加入群组(前10个)：\n"
             for idx, group in enumerate(groups, 1):
                 group_name = group.get("group", {}).get("name", "未知")
                 role = group.get("role", {}).get("name", "未知")
