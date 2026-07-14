@@ -1,22 +1,21 @@
 import asyncio
 import traceback
 import time
+import urllib.parse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
-from .http_utils import http_get, http_post
+from .http_utils import http_get
 
 roblox_search = on_keyword(["用户名搜索", "/用户名搜索"], priority=5, block=True)
 
 async def get_user_info(username):
-    url = "https://users.roblox.com/v1/usernames/users"
+    encoded_username = urllib.parse.quote(username)
+    url = f"https://users.roblox.com/v1/users/search?keyword={encoded_username}"
     try:
-        data = await http_post(url, data={
-            "usernames": [username],
-            "excludeBannedUsers": False
-        })
+        data = await http_get(url)
         if data.get("data"):
             return data["data"][0]
     except:
@@ -96,7 +95,7 @@ async def get_avatar_headshot_url(user_id):
 @roblox_search.handle()
 async def handle_search(event: Event):
     raw_text = str(event.get_message()).strip()
-    username = raw_text.replace("用户名搜索", "").replace("/用户名搜索", "").strip()
+    username = raw_text.replace("/用户名搜索", "").replace("用户名搜索", "").strip()
     
     if not username:
         await roblox_search.finish("请输入用户名，例：用户名搜索 Roblox")
@@ -182,7 +181,7 @@ async def handle_search(event: Event):
         
         if groups:
             output += f"\n🏠 已加入群组(前10个)：\n"
-            for idx, group in enumerate(groups, 1):
+            for idx, group in enumerate(groups[:10], 1):
                 group_name = group.get("group", {}).get("name", "未知")
                 role = group.get("role", {}).get("name", "未知")
                 group_id = group.get("group", {}).get("id", 0)

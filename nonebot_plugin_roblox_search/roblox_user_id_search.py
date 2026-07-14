@@ -162,7 +162,7 @@ async def handle_user_id_search(event: Event):
         
         if groups:
             output += f"\n🏠 已加入群组(前10个)：\n"
-            for idx, group in enumerate(groups, 1):
+            for idx, group in enumerate(groups[:10], 1):
                 group_name = group.get("group", {}).get("name", "未知")
                 role = group.get("role", {}).get("name", "未知")
                 group_id = group.get("group", {}).get("id", 0)
