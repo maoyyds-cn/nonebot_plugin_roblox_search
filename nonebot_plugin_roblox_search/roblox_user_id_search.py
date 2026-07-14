@@ -11,14 +11,14 @@ from .http_utils import http_get
 roblox_user_id_search = on_keyword(["用户ID搜索", "/用户ID搜索"], priority=5, block=True)
 
 async def get_user_details(user_id):
-    url = f"https://users.roblox.com/v1/users/{user_id}"
+    url = f"https://users.rotunnel.com/v1/users/{user_id}"
     try:
         return await http_get(url)
     except:
         return None
 
 async def get_user_status(user_id):
-    url = f"https://presence.roblox.com/v1/presence/users"
+    url = f"https://presence.rotunnel.com/v1/presence/users"
     try:
         from .http_utils import http_post
         data = await http_post(url, data={"userIds": [user_id]})
@@ -29,7 +29,7 @@ async def get_user_status(user_id):
     return None
 
 async def get_groups(user_id):
-    url = f"https://groups.roblox.com/v1/users/{user_id}/groups/roles?limit=10"
+    url = f"https://groups.rotunnel.com/v1/users/{user_id}/groups/roles?limit=5"
     try:
         data = await http_get(url)
         return data.get("data", [])
@@ -37,7 +37,7 @@ async def get_groups(user_id):
         return []
 
 async def get_friend_count(user_id):
-    url = f"https://friends.roblox.com/v1/users/{user_id}/friends/count"
+    url = f"https://friends.rotunnel.com/v1/users/{user_id}/friends/count"
     try:
         data = await http_get(url)
         return data.get("count", 0)
@@ -45,7 +45,7 @@ async def get_friend_count(user_id):
         return 0
 
 async def get_follower_count(user_id):
-    url = f"https://friends.roblox.com/v1/users/{user_id}/followers/count"
+    url = f"https://friends.rotunnel.com/v1/users/{user_id}/followers/count"
     try:
         data = await http_get(url)
         return data.get("count", 0)
@@ -53,7 +53,7 @@ async def get_follower_count(user_id):
         return 0
 
 async def get_following_count(user_id):
-    url = f"https://friends.roblox.com/v1/users/{user_id}/followings/count"
+    url = f"https://friends.rotunnel.com/v1/users/{user_id}/followings/count"
     try:
         data = await http_get(url)
         return data.get("count", 0)
@@ -61,7 +61,7 @@ async def get_following_count(user_id):
         return 0
 
 async def get_avatar_url(user_id):
-    url = f"https://thumbnails.roblox.com/v1/users/avatar?userIds={user_id}&size=420x420&format=Png"
+    url = f"https://thumbnails.rotunnel.com/v1/users/avatar?userIds={user_id}&size=420x420&format=Png"
     try:
         data = await http_get(url)
         if data.get("data") and len(data["data"]) > 0:
@@ -71,7 +71,7 @@ async def get_avatar_url(user_id):
     return ""
 
 async def get_avatar_headshot_url(user_id):
-    url = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png&isCircular=false"
+    url = f"https://thumbnails.rotunnel.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png&isCircular=false"
     try:
         data = await http_get(url)
         if data.get("data") and len(data["data"]) > 0:
@@ -158,11 +158,11 @@ async def handle_user_id_search(event: Event):
         output += f"🚫 账号封禁：{'是' if is_banned else '否'}\n"
         
         if description:
-            output += f"\n📝 用户简介：\n{description[:200]}{'......' if len(description)>200 else ''}\n"
+            output += f"\n📝 用户简介：\n{description}\n"
         
         if groups:
-            output += f"\n🏠 已加入群组(前10个)：\n"
-            for idx, group in enumerate(groups[:10], 1):
+            output += f"\n🏠 已加入群组(前5个)：\n"
+            for idx, group in enumerate(groups[:5], 1):
                 group_name = group.get("group", {}).get("name", "未知")
                 role = group.get("role", {}).get("name", "未知")
                 group_id = group.get("group", {}).get("id", 0)
@@ -170,6 +170,7 @@ async def handle_user_id_search(event: Event):
                 output += f"   群组ID：{group_id}\n"
         
         messages = []
+        
         if headshot_url:
             try:
                 import requests

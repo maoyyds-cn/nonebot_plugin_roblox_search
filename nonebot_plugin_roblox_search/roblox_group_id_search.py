@@ -10,11 +10,11 @@ from .http_utils import http_get
 roblox_group_id_search = on_keyword(["/群组ID搜索","群组ID搜索"], priority=5, block=True)
 
 async def get_group_info(gid):
-    url = f"https://groups.roblox.com/v1/groups/{gid}"
+    url = f"https://groups.rotunnel.com/v1/groups/{gid}"
     return await http_get(url)
 
 async def get_group_icon(gid):
-    url = f"https://thumbnails.roblox.com/v1/groups/icons?groupIds={gid}&size=512x512&format=Png&isCircular=false"
+    url = f"https://thumbnails.rotunnel.com/v1/groups/icons?groupIds={gid}&size=512x512&format=Png&isCircular=false"
     try:
         data = await http_get(url)
         return data.get("data", [{}])[0].get("imageUrl", "")
@@ -22,7 +22,7 @@ async def get_group_icon(gid):
         return ""
 
 async def get_group_roles(gid):
-    url = f"https://groups.roblox.com/v1/groups/{gid}/roles"
+    url = f"https://groups.rotunnel.com/v1/groups/{gid}/roles"
     try:
         data = await http_get(url)
         return data.get("roles", [])
@@ -68,7 +68,7 @@ async def handle_group_id_search(event: Event):
         
         roles_text = ""
         if roles:
-            for role in roles[:10]:
+            for role in roles[:5]:
                 role_name = role.get("name", "未知")
                 rank = role.get("rank", 0)
                 member_count_role = role.get("memberCount", 0)
@@ -84,9 +84,10 @@ async def handle_group_id_search(event: Event):
         output += f"📅 创建时间：{create_date.strftime('%Y-%m-%d') if create_date else '未知'}\n"
         output += f"🌐 是否公开：{'是' if is_public else '否'}\n\n"
         output += f"📝 群组描述：\n{description[:200]}{'......' if len(description)>200 else ''}\n\n"
-        output += f"🏆 职位列表(前10个)：\n{roles_text}"
+        output += f"🏆 职位列表(前5个)：\n{roles_text}"
         
         messages = []
+        
         if icon_url:
             try:
                 import requests
@@ -97,6 +98,7 @@ async def handle_group_id_search(event: Event):
                 pass
         
         messages.append(output)
+        
         await roblox_group_id_search.finish(messages)
 
     except ActionFailed:

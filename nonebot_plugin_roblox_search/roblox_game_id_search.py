@@ -10,11 +10,11 @@ from .http_utils import http_get
 roblox_game_id_search = on_keyword(["/游戏ID搜索","游戏ID搜索"], priority=5, block=True)
 
 async def get_game_info(game_id):
-    url = f"https://games.roblox.com/v1/games?placeIds={game_id}"
+    url = f"https://games.rotunnel.com/v1/games?placeIds={game_id}"
     return await http_get(url)
 
 async def get_game_icon(game_id):
-    url = f"https://thumbnails.roblox.com/v1/games/icons?gameIds={game_id}&size=512x512&format=Png&isCircular=false"
+    url = f"https://thumbnails.rotunnel.com/v1/games/icons?gameIds={game_id}&size=512x512&format=Png&isCircular=false"
     try:
         data = await http_get(url)
         return data.get("data", [{}])[0].get("imageUrl", "")
@@ -22,7 +22,7 @@ async def get_game_icon(game_id):
         return ""
 
 async def get_game_servers(game_id):
-    url = f"https://games.roblox.com/v1/games/{game_id}/servers/Public?limit=5"
+    url = f"https://games.rotunnel.com/v1/games/{game_id}/servers/Public?limit=5"
     try:
         data = await http_get(url)
         return data.get("data", [])
@@ -98,6 +98,7 @@ async def handle_game_id_search(event: Event):
         output += f"🌐 公开服务器(前3个)：\n{servers_text}"
         
         messages = []
+        
         if icon_url:
             try:
                 import requests
@@ -108,6 +109,7 @@ async def handle_game_id_search(event: Event):
                 pass
         
         messages.append(output)
+        
         await roblox_game_id_search.finish(messages)
 
     except ActionFailed:

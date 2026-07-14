@@ -9,7 +9,7 @@ from .http_utils import http_get
 roblox_get_friends = on_keyword(["/获取好友列表","获取好友列表"], priority=5, block=True)
 
 async def get_friends(uid, limit=10):
-    url = f"https://friends.roblox.com/v1/users/{uid}/friends?limit={limit}"
+    url = f"https://friends.rotunnel.com/v1/users/{uid}/friends?limit={limit}"
     try:
         data = await http_get(url)
         return data.get("data", [])

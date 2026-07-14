@@ -10,15 +10,15 @@ from .http_utils import http_get
 roblox_group_name_search = on_keyword(["/群组名搜索","群组名搜索"], priority=5, block=True)
 
 async def search_group_by_name(name):
-    url = f"https://groups.roblox.com/v1/groups/search?keyword={name}&limit=10"
+    url = f"https://groups.rotunnel.com/v1/groups/search?keyword={name}&limit=10"
     return await http_get(url)
 
 async def get_group_info(gid):
-    url = f"https://groups.roblox.com/v1/groups/{gid}"
+    url = f"https://groups.rotunnel.com/v1/groups/{gid}"
     return await http_get(url)
 
 async def get_group_icon(gid):
-    url = f"https://thumbnails.roblox.com/v1/groups/icons?groupIds={gid}&size=512x512&format=Png&isCircular=false"
+    url = f"https://thumbnails.rotunnel.com/v1/groups/icons?groupIds={gid}&size=512x512&format=Png&isCircular=false"
     try:
         data = await http_get(url)
         return data.get("data", [{}])[0].get("imageUrl", "")
@@ -75,6 +75,7 @@ async def handle_group_name_search(event: Event):
         output += f"📝 群组描述：\n{description[:300]}{'......' if len(description)>300 else ''}"
         
         messages = []
+        
         if icon_url:
             try:
                 import requests
@@ -85,6 +86,7 @@ async def handle_group_name_search(event: Event):
                 pass
         
         messages.append(output)
+        
         await roblox_group_name_search.finish(messages)
 
     except ActionFailed:

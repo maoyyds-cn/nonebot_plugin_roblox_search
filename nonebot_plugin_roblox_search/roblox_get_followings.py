@@ -9,7 +9,7 @@ from .http_utils import http_get
 roblox_get_followings = on_keyword(["/获取关注列表","获取关注列表"], priority=5, block=True)
 
 async def get_followings(uid, limit=10):
-    url = f"https://friends.roblox.com/v1/users/{uid}/followings?limit={limit}"
+    url = f"https://friends.rotunnel.com/v1/users/{uid}/followings?limit={limit}"
     try:
         data = await http_get(url)
         return data.get("data", [])

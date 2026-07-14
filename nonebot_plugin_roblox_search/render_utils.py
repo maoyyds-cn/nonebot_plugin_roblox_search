@@ -185,7 +185,13 @@ async def menu_to_image() -> bytes:
         
         y += 15
     
-    footer_text = "Powered by NoneBot2 · 版本 1.1.6"
+    try:
+        from importlib.metadata import version
+        __version__ = version("nonebot-plugin-roblox-search")
+    except Exception:
+        __version__ = "1.3.3"
+    
+    footer_text = f"Powered by nonebot_plugin_roblox_search · 版本 {__version__}"
     bbox = small_font.getbbox(footer_text)
     footer_width = bbox[2] - bbox[0]
     draw.text(((content_width - footer_width) // 2, image_height - 30), 
