@@ -1,10 +1,12 @@
 import asyncio
 import traceback
 import time
+from datetime import datetime
 from nonebot import on_keyword
-from nonebot.adapters.onebot.v11 import Event, MessageSegment
+from nonebot.adapters.onebot.v11 import Event
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
+from .whitelist import check_whitelist
 
 roblox_get_followers = on_keyword(["/获取粉丝列表","获取粉丝列表"], priority=5, block=True)
 
@@ -24,6 +26,10 @@ async def handle_get_followers(event: Event):
     if not uid_str or not uid_str.isdigit():
         await roblox_get_followers.finish("请输入有效的用户ID（纯数字），例：/获取粉丝列表 123456789")
     uid = int(uid_str)
+    
+    group_id = str(event.group_id) if hasattr(event, 'group_id') else "private"
+    if group_id != "private" and not check_whitelist(group_id):
+        await roblox_get_followers.finish("此群未获得账号所有者的允许，未开放此群白名单，暂时不开使用，请联系账号所有者")
     
     await roblox_get_followers.send("稍等，正在获取粉丝列表...")
     total_start = time.time()

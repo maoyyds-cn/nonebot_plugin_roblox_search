@@ -8,6 +8,7 @@ from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
+from .whitelist import check_whitelist
 
 roblox_search = on_keyword(["用户名搜索", "/用户名搜索"], priority=5, block=True)
 
@@ -99,6 +100,10 @@ async def handle_search(event: Event):
     
     if not username:
         await roblox_search.finish("请输入用户名，例：用户名搜索 Roblox")
+    
+    group_id = str(event.group_id) if hasattr(event, 'group_id') else "private"
+    if group_id != "private" and not check_whitelist(group_id):
+        await roblox_search.finish("此群未获得账号所有者的允许，未开放此群白名单，暂时不开使用，请联系账号所有者")
     
     await roblox_search.send("稍等，正在查询Roblox用户信息...")
     total_start = time.time()

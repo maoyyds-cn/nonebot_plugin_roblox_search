@@ -1,6 +1,9 @@
 # nonebot_plugin_roblox_search/__init__.py
 from nonebot.plugin import PluginMetadata
 
+from .whitelist import load_whitelist, check_whitelist
+load_whitelist()
+
 # 导入全部功能模块，原有roblox文件零修改
 from . import (
     roblox_menu,

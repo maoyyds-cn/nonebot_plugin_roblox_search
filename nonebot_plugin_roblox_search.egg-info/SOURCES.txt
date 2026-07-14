@@ -14,6 +14,7 @@ nonebot_plugin_roblox_search/roblox_group_name_search.py
 nonebot_plugin_roblox_search/roblox_menu.py
 nonebot_plugin_roblox_search/roblox_query.py
 nonebot_plugin_roblox_search/roblox_user_id_search.py
+nonebot_plugin_roblox_search/whitelist.py
 nonebot_plugin_roblox_search.egg-info/PKG-INFO
 nonebot_plugin_roblox_search.egg-info/SOURCES.txt
 nonebot_plugin_roblox_search.egg-info/dependency_links.txt

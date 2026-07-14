@@ -6,6 +6,7 @@ from nonebot import on_keyword
 from nonebot.adapters.onebot.v11 import Event, MessageSegment
 from nonebot.exception import ActionFailed, FinishedException
 from .http_utils import http_get
+from .whitelist import check_whitelist
 
 roblox_game_id_search = on_keyword(["/游戏ID搜索","游戏ID搜索"], priority=5, block=True)
 
@@ -37,6 +38,10 @@ async def handle_game_id_search(event: Event):
     if not game_id_str or not game_id_str.isdigit():
         await roblox_game_id_search.finish("请输入有效的游戏ID（纯数字），例：/游戏ID搜索 123456789")
     game_id = int(game_id_str)
+    
+    group_id = str(event.group_id) if hasattr(event, 'group_id') else "private"
+    if group_id != "private" and not check_whitelist(group_id):
+        await roblox_game_id_search.finish("此群未获得账号所有者的允许，未开放此群白名单，暂时不开使用，请联系账号所有者")
     
     await roblox_game_id_search.send("稍等，正在查询游戏信息...")
     total_start = time.time()
